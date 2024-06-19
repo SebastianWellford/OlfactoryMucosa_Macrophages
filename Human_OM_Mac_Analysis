@@ -1,3 +1,4 @@
+## Analysis performed in RStudio
 ## setup workspace and load scRNAseq data from Goldstein lab
 setwd("/Users/saw97/Desktop/Human Olfactory Macrophage scRNAseq")
 library(Seurat)
