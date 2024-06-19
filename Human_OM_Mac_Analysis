@@ -1,0 +1,184 @@
+## setup workspace and load scRNAseq data from Goldstein lab
+setwd("/Users/saw97/Desktop/Human Olfactory Macrophage scRNAseq")
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(data.table)
+OM.Lymph <- readRDS(file = "Lymphocytes_filter.rds")
+OM.Myeloid <- readRDS(file = "myeloid.rds")
+
+
+## Integrate data into unified CD45
+OM.Lymph <- NormalizeData(OM.Lymph)
+OM.Lymph <- FindVariableFeatures(OM.Lymph, selection.method = "vst", nfeatures = 7000)
+OM.Myeloid <- NormalizeData(OM.Myeloid)
+OM.Myeloid <- FindVariableFeatures(OM.Myeloid, selection.method = "vst", nfeatures = 7000)
+OM.CD45.Anchors <- FindIntegrationAnchors(object.list = c(OM.Lymph, OM.Myeloid), dims = 1:50)
+OM.CD45 <- IntegrateData(anchorset = OM.CD45.anchors, dims = 1:50)
+OM.CD45 <- IntegrateData(anchorset = OM.CD45.Anchors, dims = 1:50)
+all.genes <- rownames(OM.CD45)
+
+
+## Subset data for Macrophages
+OM.CD45 <- ScaleData(OM.CD45, features = all.genes)
+OM.CD45 <- RunPCA(OM.CD45, features = VariableFeatures(OM.CD45), npcs = 75)
+ElbowPlot(OM.CD45, ndims = 75)
+OM.CD45 <- FindNeighbors(OM.CD45, dims = 1:75)
+OM.CD45 <- FindClusters(OM.CD45, resolution = 1.2)
+OM.CD45 <- RunUMAP(OM.CD45, dims = 1:75)
+DimPlot(OM.CD45, reduction = "umap", label = T)
+DimPlot(OM.CD45, reduction = "umap", group.by = "cond")
+FeaturePlot(OM.CD45, features = c("CD8A", "CD3E", "CD14", "CD68", "CD74", "P2RY12", "CD19", "IGHA1", "S100A8"), ncol = 3)
+DefaultAssay(OM.CD45) <- "RNA"
+OM.CD45.Markers <- FindAllMarkers(OM.CD45, only.pos = TRUE, min.pct = 0.10, logfc.threshold = 0.25)
+Top50.Markers <- OM.CD45.Markers %>% group_by(cluster) %>% slice_max(n = 50, order_by = avg_log2FC)
+write.table(Top50.Markers, file = "Top50Markers_OMCD45.txt", sep = "\t")
+DimPlot(OM.CD45, group.by = "orig.ident")
+DimPlot(OM.CD45, group.by = "cluster_names")
+Macrophage1 <- subset(OM.CD45, idents = c("1", "9", "19", "5", "7", "13", "15", "32", "33"))
+
+
+## Re-cluster and further subset Macrophage1
+DefaultAssay(Macrophage1) <- "integrated"
+Macrophage1 <- FindVariableFeatures(Macrophage1, selection.method = "vst", nfeatures = 7000)
+all.genes <- rownames(Macrophage1)
+Macrophage1 <- ScaleData(Macrophage1, features = all.genes)
+Macrophage1 <- RunPCA(Macrophage1, features = VariableFeatures(Macrophage1), npcs = 75)
+ElbowPlot(Macrophage1, ndims = 75)
+Macrophage1 <- FindNeighbors(Macrophage1, dims = 1:75)
+Macrophage1 <- FindClusters(Macrophage1, resolution = 1)
+Macrophage1 <- RunUMAP(Macrophage1, dims = 1:75)
+DimPlot(Macrophage1, reduction = "umap", label = T)
+DimPlot(Macrophage1, reduction = "umap", group.by = "cond")
+DimPlot(Macrophage1, reduction = "umap", group.by = "cluster_names")
+DimPlot(Macrophage1, reduction = "umap", label = T)
+Macrophage1.Markers <- FindAllMarkers(Macrophage1, only.pos = TRUE, min.pct = 0.10, logfc.threshold = 0.25)
+DefaultAssay(Macrophage1) <- "RNA"
+Macrophage1.Markers <- FindAllMarkers(Macrophage1, only.pos = TRUE, min.pct = 0.10, logfc.threshold = 0.25)
+Mac.Top50.Markers <- Macrophage1.Markers %>% group_by(cluster) %>% slice_max(n = 50, order_by = avg_log2FC)
+write.table(Mac.Top50.Markers, file = "Top50Markers_Macrophage1.txt", sep = "\t")
+MacVMono <- FindMarkers(Macrophage1, ident.1 = c("2", "4", "7", "8", "9", "12", "13"), ident.2 = c("1", "5", "6"), min.pct = 0.1, logfc.threshold = 0.25)
+MacVMono
+write.table(MacVMono, file = "MacVMono.txt", sep = "\t")
+FeaturePlot(Macrophage1, features = c("CD16", "S100A8", "S100A9", "S100A12", "VCAN", "CSF3R", "CDKN1C", "LRRC25", "TCF7L2", "LYN", "PLRA"), ncol = 4)
+FeaturePlot(Macrophage1, features = c("APOE", "APOC1", "C1QB", "C1QC", "RNASE1", "ACP5", "GPNMB", "PLD3", "CTSB", "PLTP", "CD9", "PROX1", "CTSZ", "DAB2", "CD63", "CD81", "LIPA", "GLUL", "SLCO2B1", "CREG1", "LGALS3", "LAMP1"), ncol = 6)
+FeaturePlot(Macrophage1, features = c("CPNE3", "WDFY4", "CADM1", "CDK2AP2", "SNX3", "FCER1A", "CD1C", "CLEC10A", "CCR7", "CCL22", "LAMP3", "EBI3", "RAB8B", "CERS6"), ncol = 5)
+FeaturePlot(Macrophage1, features = c("P2RY12", "P2RY13", "PF4", "CTSD", "STAB1", "MRC1", "CTSB", "MAF", "DAB2", "CD74", "FTH1", "ITGAX", "CXCL16", "LGALS3", "SLAMF7", "TGFBI", "CALM1", "CCR2"), ncol = 6)
+DimPlot(Macrophage1, reduction = "umap", label = T)
+
+
+## Re-cluster and further subset macrophages
+Macrophage2 <- subset(Macrophage1, idents = c("0", "1", "2", "4", "5", "6", "7", "8", "9", "11", "12", "13", "14", "15", "16"))
+DefaultAssay(Macrophage2) <- "integrated"
+Macrophage2 <- FindVariableFeatures(Macrophage2, selection.method = "vst", nfeatures = 7000)
+all.genes <- rownames(Macrophage2)
+Macrophage2 <- ScaleData(Macrophage2, features = all.genes)
+Macrophage2 <- RunPCA(Macrophage2, features = VariableFeatures(Macrophage2), npcs = 75)
+Macrophage2 <- FindNeighbors(Macrophage2, dims = 1:75)
+Macrophage2 <- FindClusters(Macrophage2, resolution = 1)
+Macrophage2 <- RunUMAP(Macrophage2, dims = 1:75)
+DimPlot(Macrophage2, reduction = "umap", label = T)
+saveRDS(OM.CD45, file = "Human_OM_AllCD45.rds")
+saveRDS(Macrophage2, file = "Human_Macs.rds")
+Human.Macs <- readRDS(file = "Human_Macs.rds")
+DimPlot(Human.Macs, reduction = "umap", label = T)
+DefaultAssay(Human.Macs) <- "integrated"
+Human.Macs <- FindClusters(Human.Macs, resolution = 0.4)
+Human.Macs <- RunUMAP(Human.Macs, dims = 1:75)
+DimPlot(Human.Macs, reduction = "umap", label = T)
+FeaturePlot(Human.Macs, features = c("XCR1", "CD8A", "CLEC9A", "ITGAE", "IRF8", "BATF3", "ITGAM", "SIRPA", "ESAM", "MGL2", "CLEC12A", "IRF4"), ncol = 4)
+Human.Macs <- FindClusters(Human.Macs, resolution = 0.7)
+Human.Macs <- RunUMAP(Human.Macs, dims = 1:75)
+DimPlot(Human.Macs, reduction = "umap", label = T)
+Macrophage <- subset(Human.Macs, idents = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"))
+
+
+## Final macrophage subset analysis
+DefaultAssay(Macrophage) <- "integrated"
+Macrophage <- FindVariableFeatures(Macrophage, selection.method = "vst", nfeatures = 7000)
+all.genes <- rownames(Macrophage)
+Macrophage <- ScaleData(Macrophage, features = all.genes)
+Macrophage <- RunPCA(Macrophage, features = VariableFeatures(Macrophage), npcs = 75)
+ElbowPlot(Macrophage, ndims = 75)
+Macrophage <- FindNeighbors(Macrophage, dims = 1:75)
+Macrophage <- FindClusters(Macrophage, resolution = 0.7)
+Macrophage <- RunUMAP(Macrophage, dims = 1:75)
+DimPlot(Macrophage, reduction = "umap", label = T)
+
+
+## Analyze for murine macrophage signatures and cluster markers
+P2ry12.signature <- c("FCRL1", "CTSD", "STAB1", "MRC1", "SELENOP", "IGF1", "MAF", "P2RY12", "GAS6", "PF4", "JUN", "TF", "CTSB", "DAB2", "TIMP2", "PMP22", "RNASE4", "VCAM1", "WWP1", "CX3CR1", "CFH", "ABCA9", "SCOC", "CP", "ITSN1", "HPGD", "RHOB", "MALAT1", "APOE", "SYNGR1", "AP1B1")
+Human_Macs <- AddModuleScore(object = Human_Macs, features = list(P2ry12.signature), name = "P2ry12_signature")
+P2ry12.signature <- c("FCRL1", "CTSD", "STAB1", "MRC1", "SELENOP", "IGF1", "MAF", "P2RY12", "GAS6", "PF4", "JUN", "TF", "CTSB", "DAB2", "TIMP2", "PMP22", "RNASE4", "VCAM1", "WWP1", "CX3CR1", "CFH", "ABCA9", "SCOC", "CP", "ITSN1", "HPGD", "RHOB", "MALAT1", "APOE", "SYNGR1", "AP1B1")
+Macrophage <- AddModuleScore(object = Macrophage, features = list(P2ry12.signature), name = "P2ry12_signature")
+DefaultAssay(Macrophage) <- "RNA"
+P2ry12.signature <- c("FCRL1", "CTSD", "STAB1", "MRC1", "SELENOP", "IGF1", "MAF", "P2RY12", "GAS6", "PF4", "JUN", "TF", "CTSB", "DAB2", "TIMP2", "PMP22", "RNASE4", "VCAM1", "WWP1", "CX3CR1", "CFH", "ABCA9", "SCOC", "CP", "ITSN1", "HPGD", "RHOB", "MALAT1", "APOE", "SYNGR1", "AP1B1")
+Macrophage <- AddModuleScore(object = Macrophage, features = list(P2ry12.signature), name = "P2ry12_signature")
+FeaturePlot(Macrophage, features = "P2ry12_signature1")
+VlnPlot(Macrophage, features = "P2ry12_signature1")
+MHCII.signature <- c("CD74", "HLA-DRA", "HLA-DRB1", "HLA-DRB3", "HLA-DRB4", "HLA-DRB5", "HLA-DQA1", "HLA-DQA2", "HLA-DQB1", "HLA-DQB2", "HLA-DQB3", "HLA-DPA1", "HLA-DPB1", "FTH1", "ITGAX", "PLBD1", "CXCL16", "LGALS3", "SLAMF7", "PSAP", "CD52", "CD72", "TGFBI", "CYBB", "CALM1", "RPS5", "RPLP0", "B2M", "CCR2", "EEF1A1", "GM2A", "GFPT1", "SLAMF9", "RPL4", "EEF2", "VIM", "RPS14", "RPS9", "RPL39")
+Macrophage <- AddModuleScore(object = Macrophage, features = list(MHCII.signature), name = "MHCII_signature")
+FeaturePlot(Macrophage, features = "MHCII_signature1")
+VlnPlot(Macrophage, features = "MHCII_signature1")
+DefaultAssay(Macrophage) <- "integrated"
+Macrophage <- FindClusters(Macrophage, resolution = 0.4)
+Macrophage <- RunUMAP(Macrophage, dims = 1:75)
+DimPlot(Macrophage, reduction = "umap", label = T)
+VlnPlot(Macrophage, features = "P2ry12_signature1")
+VlnPlot(Macrophage, features = "MHCII_signature1")
+DimPlot(Macrophage, reduction = "umap", group.by = "cond")
+Macrophage.Markers <- FindAllMarkers(Macrophage, only.pos = TRUE, min.pct = 0.10, logfc.threshold = 0.25)
+Mac.Top50.Markers <- Macrophage.Markers %>% group_by(cluster) %>% slice_max(n = 50, order_by = avg_log2FC)
+write.table(Mac.Top50.Markers, file = "Top50Markers_Macrophage.txt", sep = "\t")
+DefaultAssay(Macrophage) <- "RNA"
+Macrophage.Markers <- FindAllMarkers(Macrophage, only.pos = TRUE, min.pct = 0.10, logfc.threshold = 0.25)
+Mac.Top50.Markers <- Macrophage.Markers %>% group_by(cluster) %>% slice_max(n = 50, order_by = avg_log2FC)
+write.table(Mac.Top50.Markers, file = "Top50Markers_Macrophage.txt", sep = "\t")
+VlnPlot(Macrophage, features = "P2ry12_signature1", split.by = "cond")
+VlnPlot(Macrophage, features = "MHCII_signature1", split.by = "cond")
+DefaultAssay(Macrophage) <- "integrated"
+Macrophage <- FindClusters(Macrophage, resolution = 0.4)
+Macrophage <- RunUMAP(Macrophage, dims = 1:75)
+DimPlot(Macrophage, reduction = "umap", label = T)
+DefaultAssay(Macrophage)  <- "RNA"
+Idents(Macrophage) <- "cond"
+Macrophage.cond.Markers <- FindAllMarkers(Macrophage, only.pos = TRUE, min.pct = 0.10, logfc.threshold = 0.25)
+Mac.cond.Top50.Markers <- Macrophage.Markers %>% group_by(cluster) %>% slice_max(n = 50, order_by = avg_log2FC)
+write.table(Mac.cond.Top50.Markers, file = "Top50Markers_cond_Macrophage.txt", sep = "\t")
+Idents(Macrophage) <- "seurat_clusters"
+Cluster.cond <- table(Macrophage$seurat_clusters, Macrophage$cond)
+Cluster.cond
+Mac.cond.Top50.Markers <- Macrophage.Markers %>% group_by(cond) %>% slice_max(n = 50, order_by = avg_log2FC)
+Mac.cond.Top50.Markers <- Macrophage.cond.Markers %>% group_by(cluster) %>% slice_max(n = 50, order_by = avg_log2FC)
+write.table(Mac.cond.Top50.Markers, file = "Top50Markers_cond_Macrophage.txt", sep = "\t")
+Mac.Cluster4.Markers <- FindMarkers(Macrophage, ident.1 = "4", min.pct = 0.05, logfc.threshold = 0)
+write.table(Mac.Cluster4.Markers, file = "Human_Mac_Cluster4_GSEA.txt", sep = "\t")
+Idents(Macrophage) <- "cond"
+Mac.COVID.Markers <- FindMarkers(Macrophage, ident.1 = "covid", min.pct = 0.05, logfc.threshold = 0)
+write.table(Mac.COVID.Markers, file = "Human_Mac_COVID_GSEA.txt", sep = "\t")
+Mac.Normosmic.Markers <- FindMarkers(Macs, ident.1 = "normosmic", min.pct = 0.05, logfc.threshold = 0)
+write.table(Mac.Normosmic.Markers, file = "Human_Mac_Normosmic_GSEA.txt", sep = "\t")
+Idents(Macrophage) <- "seurat_clusters"
+saveRDS(Macrophage, file = "Human_Macrophage.rds")
+
+
+##Additional analysis for supplementary tables
+Macrophage <- readRDS(file = "Human_Macrophage.rds")
+Macrophage.Markers <- FindAllMarkers(Macrophage, only.pos = TRUE, min.pct = 0.10, logfc.threshold = 0.25)
+Significant_markers <- Macrophage.Markers %>%
+group_by(cluster) %>%
+dplyr::filter(p_val_adj < 0.05)
+write.table(Significant_markers, file = "Significant_Human_Mac_Markers.txt", sep = "\t")
+
+
+## Volcano plot generation
+library(EnhancedVolcano)
+Human.Macs <- readRDS(file = "Human_Macrophage.rds")
+MacVolcanoData <- FindMarkers(Human.Macs, ident.1 = "4", logfc.threshold = 0, min.pct = 0)
+library(magrittr)
+MacVolcanoPlot <- EnhancedVolcano(MacVolcanoData, lab = rownames(MacVolcanoData), x = "avg_log2FC", y = "p_val")
+MacVolcanoPlot
+Idents(Human.Macs) <- "cond"
+CovidVolcanoData <- FindMarkers(Human.Macs, ident.1 = "covid", logfc.threshold = 0, min.pct = 0)
+CovidVolcanoPlot <- EnhancedVolcano(CovidVolcanoData, lab = rownames(CovidVolcanoData), x = "avg_log2FC", y = "p_val")
+CovidVolcanoPlot
