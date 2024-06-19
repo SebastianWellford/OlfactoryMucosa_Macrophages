@@ -1,0 +1,136 @@
+## Generation of files for GSEA
+Olfactory <- readRDS(file = "OM_CD45.RDS")
+DefaultAssay(Olfactory) <- "RNA"
+Idents(Olfactory) <- "CellTypes"
+Mac.Markers <- FindMarkers(Olfactory, ident.1 = "P2ry12 Macs", ident.2 = "MHCII Macs", min.pct = .1, logfc.threshold = 0.25)
+write.table(Mac.Markers, file = "Mac_Markers.txt", sep = '\t')
+Mac.Markers <- FindMarkers(Olfactory, ident.1 = "P2ry12 Macs", ident.2 = "MHCII Macs", min.pct = .1, logfc.threshold = 0.25, only.pos = T)
+write.table(Mac.Markers, file = "Mac_Markers.txt", sep = '\t')
+Mac.Markers <- FindMarkers(Olfactory, ident.1 = "MHCII Macs", ident.2 = "P2ry12 Macs", min.pct = .1, logfc.threshold = 0.25, only.pos = T)
+write.table(Mac.Markers, file = "Mac_Markers.txt", sep = '\t')
+GSEA <- FindMarkers(Olfactory, ident.1 = "P2ry12 Macs", ident.2 = "MHCII Macs", min.pct = 0, logfc.threshold = 0)
+write.table(GSEA, file = "MacGSEA.txt", sep = "\t")
+savehistory(file = "MacDEGs.RHistory")
+
+
+## Olfactory macrophage plot generation and comparisons
+library(EnhancedVolcano)
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(data.table)
+setwd("/Users/saw97/Desktop")
+OM.CD45 <- readRDS(file = "OM_CD45.RDS")
+DimPlot(OM.CD45, reduction = "umap", cols = c("cornflowerblue", "firebrick", "darkgoldenrod2", "palevioletred2", "seagreen4", "palegreen", "deeppink", "burlywood4", "aquamarine3", "mediumpurple4"), pt.size = 0.4)
+Mac.Markers <- FindMarkers(OM.CD45, ident.1 = "P2ry12 Macs", ident.2 = "MHCII Macs", min.pct = 0.1, logfc.threshold = 0.25)
+AllMac.Markers <- FindMarkers(OM.CD45, ident.1 = c("P2ry12 Macs", "MHCII Macs"), ident.2 = c("ab T cells", "gd T cells", "DCs", "moDCs", "NK cells", "Plasma Cells", "Ccr7 DCs", "Inflammatory Myeloid"), min.pct = 0.1, logfc.threshold = 0.25)
+Mac.genes <- c("Fcrls", "Ctsd", "Stab1", "Mrc1", "P2ry12", "Pf4", "Pmp22", "Vcam1", "Cd74", "H2-Eb1", "H2-Ab1", "H2-DMb1", "Itgax", "Cxcl16", "Ccr2", "B2m", "Cx3cr1", "Apoe", "C1qa", "Csf1r", "Ms4a7", "Lyz2", "Cd68", "Mertk")
+OM.CD45 <- ScaleData(OM.CD45)
+MacVolcanoData <- FindMarkers(OM.CD45, ident.1 = "P2ry12 Macs", ident.2 = "MHCII Macs", logfc.threshold = 0, min.pct = 0)
+library(magrittr)
+AllMacVolcanoData <- FindMarkers(OM.CD45, ident.1 = c("P2ry12 Macs", "MHCII Macs"), ident.2 = c("ab T cells", "gd T cells", "DCs", "moDCs", "NK cells", "Plasma Cells", "Ccr7 DCs", "Inflammatory Myeloid"), logfc.threshold = 0, min.pct = 0)
+AllMacVolcanoPlot <- EnhancedVolcano(AllMacVolcanoData, lab = rownames(MacVolcanoData), x = "avg_log2FC", y = "p_val")
+AllMacVolcanoPlot
+MacVolcanoPlot <- EnhancedVolcano(MacVolcanoData, lab = rownames(MacVolcanoData), x = "avg_log2FC", y = "p_val")
+P2ry12.GSEA.data <- data.frame(Pathway_Size = c(39, 43, 20, 78, 71, 37, 41, 45),
+FDR_q_Value = c(0.067, 0.155, 0.203, 0.139, 0.161, 0.224, 0.162, 0.191),
+Pathway = c("GOMF_Postsynaptic_Neurotransmitter_Receptor_Activity", "GOBP_Presynapse_Organization", "GOBP_Neurotransmitter_Receptor_Internalization", "GOBP_Endocytic_Recycling", "GOMF_Cargo_Receptor_Activity", "GOMF_Scavenger_Receptor_Activity", "GOBP_Cellular_Response_To_Amyloid_Beta", "GOBP_Apoptotic_Cell_Clearance"))
+P2ry12.GSEA.data
+MHCII.GSEA.data <- data.frame(Pathway_Size = c(94, 30, 37, 106, 87, 13, 22, 9),
+FDR_q_Value = c(0.00, 0.009, 0.076, 0.134, 0.206, 0.005, 0.009, 0.102),
+Pathway = c("GOCC_Cytosolic_Ribosome", "GOCC_Polysomal_Ribosome", "GOBP_Positive_Regulation_Of_Receptor_Signaling_Pathway_Via_STAT", "GOBP_Cytokine_Production_Involved_In_Immune_Response", "GOMF_Cytokine_Receptor_Activity", "GOMF_Ligand_Gated_Anion_Channel_Activity", "GOMF_Glutamate_Receptor_Activity", "GOBP_CGMP_Biosynthetic_Process"))
+MHCII.GSEA.data
+library(tidyverse)
+map_df(P2ry12.GSEA.data, rev)
+P2ry12.GSEA.data <- map_df(P2ry12.GSEA.data, rev)
+P2ry12.GSEA.data
+MHCII.GSEA.data <- map_df(MHCII.GSEA.data, rev)
+MHCII.barplot <- ggplot(data = MHCII.GSEA.data, aes(x=Pathway_Size, y=Pathway)) + geom_bar(stat = "identity", fill = "steelblue4") + scale_y_discrete(limits = MHCII.GSEA.data$Pathway) + xlim(0, 106)
+MHCII.barplot
+P2ry12.barplot <- ggplot(data = P2ry12.GSEA.data, aes(x=Pathway_Size, y=Pathway)) + geom_bar(stat = "identity", fill = "tomato4") + scale_y_discrete(limits = P2ry12.GSEA.data$Pathway) + xlim(0, 106)
+P2ry12.barplot
+P2ry12.barplot + theme(panel.background = element_rect(fill = "white"))
+MHCII.barplot + theme(panel.background = element_rect(fill = "white"))
+P2ry12.barplot <- P2ry12.barplot + theme(panel.background = element_rect(fill = "white"))
+MHCII.barplot <- MHCII.barplot + theme(panel.background = element_rect(fill = "white"))
+P2ry12.barplot
+MHCII.barplot
+EnhancedVolcano(MacVolcanoData, lab = rownames(MacVolcanoData), x = "avg_log2FC", y = "p_val", pointSize = 5, labSize = 10, drawConnectors = T, boxedLabels = T)
+
+OM.CD45 <- readRDS(file = "OM_CD45.RDS")
+DimPlot(OM.CD45, reduction = "umap", label = T)
+DimPlot(OM.CD45, reduction = "umap")
+View(OM.CD45)
+DimPlot(OM.CD45, reduction = "umap", group.by = "sample")
+DimPlot(OM.CD45, reduction = "umap", cols = c("cornflowerblue", "firebrick", "darkgoldenrod2", "palevioletred2", "seagreen4", "palegreen", "deeppink", "burlywood4", "aquamarine3", "mediumpurple4"), pt.size = 0.4)
+DimPlot(OM.CD45, reduction = "umap", group.by = "sample", cols = c("cornflowerblue", "firebrick"), pt.size = 0.4, shuffle = T)
+library(EnhancedVolcano)
+MacVolcanoData <- FindMarkers(OM.CD45, ident.1 = "P2ry12 Macs", ident.2 = "MHCII Macs", logfc.threshold = 0, min.pct = 0)
+View(OM.CD45)
+Macrophages <- subset(OM.CD45, subset = c("P2ry12 Macs", "MHCII+ Macs"))
+Macrophages <- subset(OM.CD45, idents = c("P2ry12 Macs", "MHCII+ Macs"))
+FindMarkers(Macrophages, ident.1 = "P2ry12 Macs", ident.2 = "MHCII+ Macs", logfc.threshold = 0, min.pct = 0)
+MacVolcanoData <- FindMarkers(Macrophages, ident.1 = "P2ry12 Macs", ident.2 = "MHCII+ Macs", logfc.threshold = 0, min.pct = 0)
+library(magrittr)
+EnhancedVolcano(MacVolcanoData, lab = rownames(MacVolcanoData), x = "avg_log2FC", y = "p_val")
+MacVolcanoPlot <- EnhancedVolcano(MacVolcanoData, lab = rownames(MacVolcanoData), x = "avg_log2FC", y = "p_val")
+InfectedMacVolcanoData <- FindMarkers(Macrophages, group.by = "sample", ident.1 = "Infected", ident.2 = "Naive", logfc.threshold = 0, min.pct = 0)
+InfectedMacVolcanoPlot <- EnhancedVolcano(InfectedMacVolcanoData, lab = rownames(InfectedMacVolcanoData), x = "avg_log2FC", y = "p_val")
+InfectedMacVolcanoPlot
+CD45.table <- table(OM.CD45$sample, OM.CD45$CellTypes)
+CD45.table
+write.table(CD45.table, file = "CellCountTable.txt", sep = "\t")
+library(readxl)
+p2ry12.gsea = read_excel("P2ry12_gsea_report.xls")
+getwd()
+p2ry12.gsea = read_excel("P2ry12_gsea_report.xls")
+p2ry12.gsea <- read_excel("P2ry12_gsea_report.xls")
+p2ry12.gsea <- read_excel("P2ry12_gsea_report.xlsx")
+MHCII.gsea <- read_excel("MHCII_gsea_report.xlsx")
+p2ry12.gsea
+MHCII.gsea
+p2ry12.gsea.selected <- p2ry12.gsea[c(16, 43, 54, 71, 84, 159)]
+p2ry12.gsea.selected <- p2ry12.gsea[c(16, 43, 54, 71, 84, 159),]
+p2ry12.gsea.selected
+MHCII.gsea.selected <- p2ry12.gsea[c(7, 14, 18, 51, 86),]
+MHCII.gsea.selected
+gsea.elected <- rbind(p2ry12.gsea.selected, MHCII.gsea.selected)
+gsea.elected
+rm(gsea.elected)
+MHCII.gsea.selected <- MHCII.gsea[c(7, 14, 18, 28, 51, 86),]
+gsea.selected <- rbind(p2ry12.gsea.selected, MHCII.gsea.selected)
+gsea.selected
+ggplot(gsea.selected, aes(x = NES, y = NAME)) + geom_bar(stat = "identity")
+View(gsea.selected)
+ggplot(gsea.selected, aes(x = NES, y = NAME, color = FDR q-val)) + geom_bar(stat = "identity") + scale_color_gradient2(midpoint=mid, low="blue", mid="white", high="red")
+gsea.selected
+colnames(gsea.selected)
+gsea.plot <- ggplot(gsea.selected, aes(x = NES, y = NAME, fill = `FDR q-val`)) + geom_bar(stat = "identity") + scale_fill_gradient(low="forestgreen", high="darkseagreen1")
+gsea.plot <- ggplot(gsea.selected, aes(x = NES, y = reorder(NAME, NES), fill = `FDR q-val`)) + geom_bar(stat = "identity") + scale_fill_gradient(low="forestgreen", high="darkseagreen1")
+gsea.plot
+gsea.plot + theme_void()
+gsea.plot + theme_classic()
+DimPlot(OM.CD45, reduction = "umap", group.by = "sample", cols = c("mediumorchid1", "darkorange"), pt.size = 0.4, shuffle = T)
+DimPlot(OM.CD45, reduction = "umap", group.by = "sample", cols = c("darkorchid", "darkorange"), pt.size = 0.4, shuffle = T)
+DimPlot(OM.CD45, reduction = "umap", group.by = "sample", cols = c("darkgray", "darkorange"), pt.size = 0.4, shuffle = T)
+
+OM_CD45 <- readRDS(file = "OM_CD45.rds")
+Idents(OM_CD45) <- c("ab T cells", "P2ry12 Macs", "Dendritic Cells", "MHCII Macs", "NK Cells", "Plasma Cells", "gd T cells", "Ccr7 DCs", "Monocyte 1", "Monocyte 2")
+Idents(OM_CD45) <- OM_CD45$CellTypes
+levels(OM_CD45) <- c("P2ry12 Macs", "MHCII+ Macs", "Dendritic Cells", "Ccr7 DCs", "Mono/Mac", "Myeloid", "ab T cells", "gd T cells", "NK Cells", "Plasma Cells")
+allmac_features = c("C1qa", "Apoe", "Csf1r", "Ms4a7", "Cx3cr1", "Cd81", "Cd74", "Mgl2", "Itgax", "Ccr7", "Retnlg", "Ltf", "Lyz2", "Fn1", "Spp1", "Cd3e", "Thy1", "Trac", "Trdc", "Klrb1c", "Il2rb", "Igha", "Jchain", "Sdc1")
+DotPlot(OM_CD45, features = allmac_features)
+Markers_Dotplot <- DotPlot(OM_CD45, features = allmac_features)
+AllMacVolcanoData <- FindMarkers(OM_CD45, ident.1 = c("P2ry12 Macs", "MHCII+ Macs"), ident.2 = c("Dendritic Cells", "Ccr7 DCs", "Mono/Mac", "Myeloid"), logfc.threshold = 0, min.pct = 0)
+library(magrittr)
+library(EnhancedVolcano)
+AllMacVolcanoPlot <- EnhancedVolcano(AllMacVolcanoData, lab = rownames(AllMacVolcanoData), x = "avg_log2FC", y = "p_val")
+AllMacVolcanoPlot
+Markers_Dotplot + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+Markers_Dotplot <- Markers_Dotplot + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+Significant_markers <- markers %>%
+group_by(cluster) %>%
+dplyr::filter(p_val_adj < 0.05)
+write.table(Significant_markers, file = "All_Cluster_SigMarkers.txt", sep = "\t")
+OM_CD45_AvgExp <- AverageExpression(OM_CD45, group.by = "CellTypes", assays = "RNA")
+write.table(OM_CD45_AvgExp, file = "OM_CD45_AvgExp.txt", sep = "\t")
